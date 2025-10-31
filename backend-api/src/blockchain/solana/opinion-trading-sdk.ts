@@ -487,10 +487,10 @@ export class OpinionTradingSDK {
       const winner = hasWinner ? (data[offset] as BidOption) : null;
       offset += 1;
 
-      const vaultBump = data[offset];
+      const vaultBump = data[offset] ?? 0;
       offset += 1;
 
-      const bump = data[offset];
+      const bump = data[offset] ?? 0;
 
       return {
         authority,
@@ -546,7 +546,7 @@ export class OpinionTradingSDK {
       const timestamp = new BN(data.slice(offset, offset + 8), 'le');
       offset += 8;
 
-      const bump = data[offset];
+      const bump = data[offset] ?? 0;
 
       return {
         bettor,

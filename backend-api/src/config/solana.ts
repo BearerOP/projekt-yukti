@@ -1,6 +1,5 @@
 // src/config/solana.ts
 import { Connection, Cluster, clusterApiUrl, Keypair } from '@solana/web3.js';
-import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import bs58 from 'bs58';
 
 // Solana configuration

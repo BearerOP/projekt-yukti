@@ -198,17 +198,8 @@ export class BidService {
 
           solanaTransaction = bidInstruction;
 
-          // Store the bid instruction in metadata for mobile to sign
-          await tx.bid.update({
-            where: { id: bid.id },
-            data: {
-              metadata: {
-                solanaInstruction: bidInstruction.instruction,
-                solanaBidAddress: bidInstruction.bidAddress,
-                solanaBidIndex: bidInstruction.bidIndex,
-              },
-            },
-          });
+          // Note: Solana transaction details are returned in the response
+          // Mobile app will use these to sign the transaction
         } catch (error) {
           console.error('Failed to create on-chain bid instruction:', error);
           // Bid still exists in DB even if on-chain creation fails
@@ -249,8 +240,8 @@ export class BidService {
       throw new Error('Only binary polls are supported');
     }
 
-    const selectedOption = options.find(opt => opt.id === optionId)!;
-    const otherOption = options.find(opt => opt.id !== optionId)!;
+    const selectedOption = options.find((opt: any) => opt.id === optionId)!;
+    const otherOption = options.find((opt: any) => opt.id !== optionId)!;
 
     // Update total staked for selected option
     const newSelectedStake = Number(selectedOption.totalStaked) + bidAmount;

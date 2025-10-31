@@ -2,10 +2,10 @@
   "compilerOptions": {
     "lib": ["ESNext"],
     "target": "ES2020",
-    "module": "ESNext",
+    "module": "CommonJS",
     "moduleDetection": "force",
     "allowJs": true,
-    "rootDir": "src",
+    "rootDir": ".",
     "outDir": "./dist",
     "baseUrl": ".",
     "moduleResolution": "node",
@@ -20,6 +20,6 @@
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
   },
-  "include": ["src"],
+  "include": ["src", "index.ts"],
   "exclude": ["node_modules", "dist", "prisma"]
 }

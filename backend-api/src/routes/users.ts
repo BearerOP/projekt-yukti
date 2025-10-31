@@ -72,7 +72,6 @@ router.get('/profile', authenticate, async (req: AuthRequest, res, next) => {
         fullName: true,
         phone: true,
         kycStatus: true,
-        profileImage: true,
         walletBalance: true,
         solanaWallet: true,
         walletType: true,
@@ -105,14 +104,13 @@ router.get('/profile', authenticate, async (req: AuthRequest, res, next) => {
  */
 router.put('/profile', authenticate, async (req: AuthRequest, res, next) => {
   try {
-    const { fullName, profileImage } = req.body;
+    const { fullName } = req.body;
     const { prisma } = await import('../lib/prisma');
 
     const user = await prisma.user.update({
       where: { id: req.user!.id },
       data: {
         ...(fullName && { fullName }),
-        ...(profileImage && { profileImage }),
         updatedAt: new Date(),
       },
       select: {
@@ -121,7 +119,6 @@ router.put('/profile', authenticate, async (req: AuthRequest, res, next) => {
         fullName: true,
         phone: true,
         kycStatus: true,
-        profileImage: true,
       },
     });
 

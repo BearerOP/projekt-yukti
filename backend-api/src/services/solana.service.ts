@@ -50,7 +50,6 @@ export class SolanaService {
       try {
         this.program = new Program(
           OpinionTradingIDL as anchor.Idl,
-          this.programId,
           this.provider
         );
       } catch (error) {
