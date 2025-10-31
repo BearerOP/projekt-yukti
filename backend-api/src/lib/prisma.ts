@@ -14,13 +14,13 @@ declare global {
 
 /**
  * Create or reuse PrismaClient instance
- * 
+ *
  * In development: Reuses the same client across hot reloads
  * In production: Creates a new client
  */
 export const prisma = global.prisma || new PrismaClient({
-  log: process.env.NODE_ENV === 'development' 
-    ? ['query', 'error', 'warn'] 
+  log: process.env.NODE_ENV === 'development'
+    ? ['query', 'error', 'warn']
     : ['error'],
 });
 
