@@ -1,0 +1,573 @@
+import * as anchor from '@coral-xyz/anchor';
+import { Program, BN } from '@coral-xyz/anchor';
+import { PublicKey, Keypair, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { assert } from 'chai';
+
+describe('Opinion Trading Platform - Complete Tests', () => {
+  // Configure the client
+  const provider = anchor.AnchorProvider.env();
+  anchor.setProvider(provider);
+
+  const program = anchor.workspace.opinion_trading as Program<any>;
+
+  // Test accounts
+  const admin = provider.wallet as anchor.Wallet;
+  let bettor1: Keypair;
+  let bettor2: Keypair;
+
+  // Test data
+  const pollId = 'test-poll-' + Date.now();
+  const pollTitle = 'Will Bitcoin reach $100k by end of 2025?';
+  const optionA = 'Yes, BTC will hit $100k';
+  const optionB = 'No, BTC stays below $100k';
+
+  // PDAs
+  let pollPDA: PublicKey;
+  let vaultPDA: PublicKey;
+
+  before(async () => {
+    console.log('\n🚀 Starting Opinion Trading Tests...');
+    console.log('Program ID:', program.programId.toBase58());
+
+    // Create test bettor accounts
+    bettor1 = Keypair.generate();
+    bettor2 = Keypair.generate();
+
+    // Airdrop SOL to bettors for testing
+    console.log('\n💰 Requesting airdrops...');
+    const airdrop1 = await provider.connection.requestAirdrop(
+      bettor1.publicKey,
+      10 * LAMPORTS_PER_SOL
+    );
+    const airdrop2 = await provider.connection.requestAirdrop(
+      bettor2.publicKey,
+      10 * LAMPORTS_PER_SOL
+    );
+
+    // Wait for confirmations
+    await provider.connection.confirmTransaction(airdrop1);
+    await provider.connection.confirmTransaction(airdrop2);
+
+    // Derive PDAs
+    [pollPDA] = PublicKey.findProgramAddressSync(
+      [Buffer.from('poll'), Buffer.from(pollId)],
+      program.programId
+    );
+
+    [vaultPDA] = PublicKey.findProgramAddressSync(
+      [Buffer.from('vault'), Buffer.from(pollId)],
+      program.programId
+    );
+
+    console.log('\n📋 Test Setup Complete:');
+    console.log('├─ Admin:', admin.publicKey.toBase58());
+    console.log('├─ Bettor 1:', bettor1.publicKey.toBase58());
+    console.log('├─ Bettor 2:', bettor2.publicKey.toBase58());
+    console.log('├─ Poll PDA:', pollPDA.toBase58());
+    console.log('└─ Vault PDA:', vaultPDA.toBase58());
+  });
+
+  describe('1️⃣  Initialize Poll', () => {
+    it('Should create a new prediction poll', async () => {
+      const endTimestamp = new BN(Math.floor(Date.now() / 1000) + 86400); // 24 hours
+
+      await program.methods
+        .initializePoll(pollId, pollTitle, optionA, optionB, endTimestamp)
+        .accounts({
+          poll: pollPDA,
+          vault: vaultPDA,
+          authority: admin.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      // Fetch poll account
+      const poll = await program.fetch(pollPDA);
+
+      assert.equal(poll.pollId, pollId);
+      assert.equal(poll.title, pollTitle);
+      assert.equal(poll.optionAText, optionA);
+      assert.equal(poll.optionBText, optionB);
+      assert.equal(poll.optionAStake.toNumber(), 0);
+      assert.equal(poll.optionBStake.toNumber(), 0);
+      assert.equal(poll.totalPool.toNumber(), 0);
+      assert.equal(poll.optionAOdds.toNumber(), 5000); // 50%
+      assert.equal(poll.optionBOdds.toNumber(), 5000); // 50%
+
+      console.log('\n✅ Poll created successfully');
+      console.log('   ├─ Title:', pollTitle);
+      console.log('   ├─ Option A:', optionA);
+      console.log('   ├─ Option B:', optionB);
+      console.log('   └─ Initial odds: 50% / 50%');
+    });
+
+    it('Should fail with poll ID too long', async () => {
+      const longId = 'x'.repeat(65);
+      const endTimestamp = new BN(Math.floor(Date.now() / 1000) + 86400);
+
+      const [longPollPDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from('poll'), Buffer.from(longId)],
+        program.programId
+      );
+
+      const [longVaultPDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from('vault'), Buffer.from(longId)],
+        program.programId
+      );
+
+      try {
+        await program.methods
+          .initializePoll(longId, pollTitle, optionA, optionB, endTimestamp)
+          .accounts({
+            poll: longPollPDA,
+            vault: longVaultPDA,
+            authority: admin.publicKey,
+            systemProgram: SystemProgram.programId,
+          })
+          .rpc();
+
+        assert.fail('Should have thrown error');
+      } catch (error: any) {
+        assert.include(error.toString(), 'PollIdTooLong');
+        console.log('✅ Correctly rejected long poll ID');
+      }
+    });
+  });
+
+  describe('2️⃣  Place Bids', () => {
+    it('Bettor 1 should place bid on Option A', async () => {
+      const bidAmount = new BN(1 * LAMPORTS_PER_SOL); // 1 SOL
+      const timestamp = Math.floor(Date.now() / 1000);
+
+      const [bidPDA] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from('bid'),
+          pollPDA.toBuffer(),
+          bettor1.publicKey.toBuffer(),
+          Buffer.from(new BN(timestamp).toArray('le', 8)),
+        ],
+        program.programId
+      );
+
+      const vaultBalanceBefore = await provider.connection.getBalance(vaultPDA);
+
+      await program.methods
+        .placeBid(bidAmount, { optionA: {} })
+        .accounts({
+          poll: pollPDA,
+          vault: vaultPDA,
+          bid: bidPDA,
+          bettor: bettor1.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([bettor1])
+        .rpc();
+
+      // Check vault received funds
+      const vaultBalanceAfter = await provider.connection.getBalance(vaultPDA);
+      assert.equal(
+        vaultBalanceAfter - vaultBalanceBefore,
+        bidAmount.toNumber(),
+        'Vault should receive bid amount'
+      );
+
+      // Check bid account
+      const bid = await program.account.bid.fetch(bidPDA);
+      assert.equal(bid.amount.toNumber(), bidAmount.toNumber());
+      assert.equal(bid.oddsAtPurchase.toNumber(), 5000); // 50% initial odds
+
+      // Check poll updated
+      const poll = await program.account.poll.fetch(pollPDA);
+      assert.equal(poll.optionAStake.toNumber(), bidAmount.toNumber());
+      assert.equal(poll.totalPool.toNumber(), bidAmount.toNumber());
+
+      console.log('\n✅ Bettor 1 placed 1 SOL on Option A');
+      console.log(`   ├─ Odds at purchase: ${bid.oddsAtPurchase.toNumber()/100}%`);
+      console.log(`   ├─ Potential win: ${bid.potentialWin.toNumber() / LAMPORTS_PER_SOL} SOL`);
+      console.log(`   └─ New odds: A=${poll.optionAOdds.toNumber()/100}% B=${poll.optionBOdds.toNumber()/100}%`);
+    });
+
+    it('Bettor 2 should place bid on Option B', async () => {
+      const bidAmount = new BN(2 * LAMPORTS_PER_SOL); // 2 SOL
+      const timestamp = Math.floor(Date.now() / 1000);
+
+      const [bidPDA] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from('bid'),
+          pollPDA.toBuffer(),
+          bettor2.publicKey.toBuffer(),
+          Buffer.from(new BN(timestamp).toArray('le', 8)),
+        ],
+        program.programId
+      );
+
+      await program.methods
+        .placeBid(bidAmount, { optionB: {} })
+        .accounts({
+          poll: pollPDA,
+          vault: vaultPDA,
+          bid: bidPDA,
+          bettor: bettor2.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([bettor2])
+        .rpc();
+
+      // Check poll updated with AMM odds
+      const poll = await program.account.poll.fetch(pollPDA);
+      assert.equal(poll.totalPool.toNumber(), 3 * LAMPORTS_PER_SOL); // 1 + 2 SOL
+
+      // Option B should have higher odds now (more stake)
+      assert.isAbove(poll.optionBOdds.toNumber(), poll.optionAOdds.toNumber());
+
+      console.log('\n✅ Bettor 2 placed 2 SOL on Option B');
+      console.log(`   ├─ AMM adjusted odds: A=${poll.optionAOdds.toNumber()/100}% B=${poll.optionBOdds.toNumber()/100}%`);
+      console.log(`   ├─ Total pool: ${poll.totalPool.toNumber() / LAMPORTS_PER_SOL} SOL`);
+      console.log(`   ├─ Option A stake: ${poll.optionAStake.toNumber() / LAMPORTS_PER_SOL} SOL`);
+      console.log(`   └─ Option B stake: ${poll.optionBStake.toNumber() / LAMPORTS_PER_SOL} SOL`);
+    });
+
+    it('Should fail with bet amount too low', async () => {
+      const tooLowAmount = new BN(0.001 * LAMPORTS_PER_SOL); // 0.001 SOL
+      const timestamp = Math.floor(Date.now() / 1000);
+
+      const [bidPDA] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from('bid'),
+          pollPDA.toBuffer(),
+          bettor1.publicKey.toBuffer(),
+          Buffer.from(new BN(timestamp).toArray('le', 8)),
+        ],
+        program.programId
+      );
+
+      try {
+        await program.methods
+          .placeBid(tooLowAmount, { optionA: {} })
+          .accounts({
+            poll: pollPDA,
+            vault: vaultPDA,
+            bid: bidPDA,
+            bettor: bettor1.publicKey,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([bettor1])
+          .rpc();
+
+        assert.fail('Should have thrown error');
+      } catch (error: any) {
+        assert.include(error.toString(), 'InvalidBetAmount');
+        console.log('✅ Correctly rejected low bet amount');
+      }
+    });
+  });
+
+  describe('3️⃣  Settle Poll', () => {
+    it('Should settle poll with Option A as winner', async () => {
+      // Wait a bit to ensure timestamp check passes
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      await program.methods
+        .settlePoll({ optionA: {} })
+        .accounts({
+          poll: pollPDA,
+          authority: admin.publicKey,
+        })
+        .rpc();
+
+      const poll = await program.account.poll.fetch(pollPDA);
+      
+      // Check status is settled
+      const statusKeys = Object.keys(poll.status);
+      assert.include(statusKeys, 'settled', 'Poll should be settled');
+      
+      // Check winner
+      const winnerKeys = Object.keys(poll.winner);
+      assert.include(winnerKeys, 'optionA', 'Option A should be the winner');
+
+      console.log('\n✅ Poll settled successfully');
+      console.log('   ├─ Winner: Option A');
+      console.log('   └─ Total pool: ' + poll.totalPool.toNumber() / LAMPORTS_PER_SOL + ' SOL');
+    });
+
+    it('Should fail if non-admin tries to settle', async () => {
+      const newPollId = 'test-' + Date.now();
+      const [newPollPDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from('poll'), Buffer.from(newPollId)],
+        program.programId
+      );
+      const [newVaultPDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from('vault'), Buffer.from(newPollId)],
+        program.programId
+      );
+
+      // Create new poll
+      const endTimestamp = new BN(Math.floor(Date.now() / 1000) + 1); // 1 second
+      await program.methods
+        .initializePoll(newPollId, 'Test', optionA, optionB, endTimestamp)
+        .accounts({
+          poll: newPollPDA,
+          vault: newVaultPDA,
+          authority: admin.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      // Wait for poll to end
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      try {
+        await program.methods
+          .settlePoll({ optionA: {} })
+          .accounts({
+            poll: newPollPDA,
+            authority: bettor1.publicKey,
+          })
+          .signers([bettor1])
+          .rpc();
+
+        assert.fail('Should have thrown error');
+      } catch (error: any) {
+        assert.include(error.toString(), 'Unauthorized');
+        console.log('✅ Correctly prevented non-admin from settling');
+      }
+    });
+  });
+
+  describe('4️⃣  Claim Winnings', () => {
+    it('Winner (Bettor 1) should claim payout with 2% fee', async () => {
+      // Get bettor 1's bid (need to find the exact timestamp)
+      const bids = await program.account.bid.all([
+        {
+          memcmp: {
+            offset: 8,
+            bytes: bettor1.publicKey.toBase58(),
+          },
+        },
+      ]);
+
+      const bettor1Bid = bids.find((b: any) => b.account.poll.equals(pollPDA));
+      assert.isDefined(bettor1Bid, 'Should find bettor 1 bid');
+
+      const bidPDA = bettor1Bid!.publicKey;
+      const bid = bettor1Bid!.account;
+
+      const potentialWin = bid.potentialWin.toNumber();
+      const expectedFee = Math.floor(potentialWin * 0.02); // 2%
+      const expectedPayout = potentialWin - expectedFee;
+
+      const balanceBefore = await provider.connection.getBalance(bettor1.publicKey);
+      const treasury = Keypair.generate().publicKey;
+
+      await program.methods
+        .claimWinnings()
+        .accounts({
+          poll: pollPDA,
+          vault: vaultPDA,
+          bid: bidPDA,
+          bettor: bettor1.publicKey,
+          treasury: treasury,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([bettor1])
+        .rpc();
+
+      const balanceAfter = await provider.connection.getBalance(bettor1.publicKey);
+      const actualPayout = balanceAfter - balanceBefore;
+
+      // Check bid marked as won
+      const updatedBid = await program.account.bid.fetch(bidPDA);
+      const statusKeys = Object.keys(updatedBid.status);
+      assert.include(statusKeys, 'won', 'Bid should be marked as won');
+
+      console.log('\n✅ Winner claimed payout');
+      console.log(`   ├─ Potential win: ${potentialWin / LAMPORTS_PER_SOL} SOL`);
+      console.log(`   ├─ Platform fee (2%): ${expectedFee / LAMPORTS_PER_SOL} SOL`);
+      console.log(`   └─ Net payout: ~${actualPayout / LAMPORTS_PER_SOL} SOL`);
+    });
+
+    it('Loser (Bettor 2) should not be able to claim', async () => {
+      const bids = await program.account.bid.all([
+        {
+          memcmp: {
+            offset: 8,
+            bytes: bettor2.publicKey.toBase58(),
+          },
+        },
+      ]);
+
+      const bettor2Bid = bids.find((b: any) => b.account.poll.equals(pollPDA));
+      assert.isDefined(bettor2Bid, 'Should find bettor 2 bid');
+
+      const bidPDA = bettor2Bid!.publicKey;
+      const treasury = Keypair.generate().publicKey;
+
+      try {
+        await program.methods
+          .claimWinnings()
+          .accounts({
+            poll: pollPDA,
+            vault: vaultPDA,
+            bid: bidPDA,
+            bettor: bettor2.publicKey,
+            treasury: treasury,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([bettor2])
+          .rpc();
+
+        assert.fail('Should have thrown error');
+      } catch (error: any) {
+        assert.include(error.toString(), 'BidDidNotWin');
+        console.log('✅ Correctly prevented loser from claiming');
+      }
+    });
+  });
+
+  describe('5️⃣  Cancel and Refund', () => {
+    let cancelPollId: string;
+    let cancelPollPDA: PublicKey;
+    let cancelVaultPDA: PublicKey;
+    let cancelBidPDA: PublicKey;
+
+    before(async () => {
+      // Create new poll for cancellation test
+      cancelPollId = 'cancel-test-' + Date.now();
+      const endTimestamp = new BN(Math.floor(Date.now() / 1000) + 86400);
+
+      [cancelPollPDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from('poll'), Buffer.from(cancelPollId)],
+        program.programId
+      );
+
+      [cancelVaultPDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from('vault'), Buffer.from(cancelPollId)],
+        program.programId
+      );
+
+      await program.methods
+        .initializePoll(cancelPollId, 'Test Cancel Poll', optionA, optionB, endTimestamp)
+        .accounts({
+          poll: cancelPollPDA,
+          vault: cancelVaultPDA,
+          authority: admin.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      // Place a bid
+      const bidAmount = new BN(1 * LAMPORTS_PER_SOL);
+      const timestamp = Math.floor(Date.now() / 1000);
+
+      [cancelBidPDA] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from('bid'),
+          cancelPollPDA.toBuffer(),
+          bettor1.publicKey.toBuffer(),
+          Buffer.from(new BN(timestamp).toArray('le', 8)),
+        ],
+        program.programId
+      );
+
+      await program.methods
+        .placeBid(bidAmount, { optionA: {} })
+        .accounts({
+          poll: cancelPollPDA,
+          vault: cancelVaultPDA,
+          bid: cancelBidPDA,
+          bettor: bettor1.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([bettor1])
+        .rpc();
+
+      console.log('\n📝 Created poll for cancellation test');
+    });
+
+    it('Should cancel poll', async () => {
+      await program.methods
+        .cancelPoll()
+        .accounts({
+          poll: cancelPollPDA,
+          authority: admin.publicKey,
+        })
+        .rpc();
+
+      const poll = await program.account.poll.fetch(cancelPollPDA);
+      const statusKeys = Object.keys(poll.status);
+      assert.include(statusKeys, 'cancelled', 'Poll should be cancelled');
+
+      console.log('✅ Poll cancelled successfully');
+    });
+
+    it('Should refund bettor for cancelled poll', async () => {
+      const bid = await program.account.bid.fetch(cancelBidPDA);
+      const refundAmount = bid.amount.toNumber();
+
+      const balanceBefore = await provider.connection.getBalance(bettor1.publicKey);
+
+      await program.methods
+        .claimRefund()
+        .accounts({
+          poll: cancelPollPDA,
+          vault: cancelVaultPDA,
+          bid: cancelBidPDA,
+          bettor: bettor1.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([bettor1])
+        .rpc();
+
+      const balanceAfter = await provider.connection.getBalance(bettor1.publicKey);
+      const actualRefund = balanceAfter - balanceBefore;
+
+      // Allow for transaction fees
+      assert.approximately(actualRefund, refundAmount, 10000);
+
+      // Check bid marked as refunded
+      const updatedBid = await program.account.bid.fetch(cancelBidPDA);
+      const statusKeys = Object.keys(updatedBid.status);
+      assert.include(statusKeys, 'refunded', 'Bid should be refunded');
+
+      console.log('✅ Bettor received full refund');
+      console.log(`   └─ Refund amount: ${refundAmount / LAMPORTS_PER_SOL} SOL`);
+    });
+  });
+
+  describe('6️⃣  Statistics & Data', () => {
+    it('Should fetch all polls', async () => {
+      const allPolls = await program.account.poll.all();
+      console.log(`\n✅ Found ${allPolls.length} polls on-chain`);
+
+      allPolls.forEach((poll: any, index: number) => {
+        console.log(`   Poll ${index + 1}:`);
+        console.log(`   ├─ ${poll.account.title}`);
+        console.log(`   └─ Pool: ${poll.account.totalPool.toNumber() / LAMPORTS_PER_SOL} SOL`);
+      });
+    });
+
+    it('Should fetch user bids', async () => {
+      const allBids = await program.account.bid.all([
+        {
+          memcmp: {
+            offset: 8,
+            bytes: bettor1.publicKey.toBase58(),
+          },
+        },
+      ]);
+
+      console.log(`\n✅ Bettor 1 has ${allBids.length} bids`);
+
+      allBids.forEach((bid: any, index: number) => {
+        const statusKey = Object.keys(bid.account.status)[0];
+        console.log(`   Bid ${index + 1}:`);
+        console.log(`   ├─ Amount: ${bid.account.amount.toNumber() / LAMPORTS_PER_SOL} SOL`);
+        console.log(`   └─ Status: ${statusKey}`);
+      });
+    });
+  });
+
+  after(() => {
+    console.log('\n🎉 All tests completed successfully!\n');
+  });
+});

@@ -1,0 +1,915 @@
+{
+  "address": "3YaSKpdV7iGrjUKAy6mKEFCSNV3bTyZVncceD34Bun1C",
+  "metadata": {
+    "name": "opinion_trading",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Yukti - Opinion Trading Platform with AMM on Solana"
+  },
+  "instructions": [
+    {
+      "name": "cancel_poll",
+      "docs": [
+        "Cancel a poll and refund all bettors (admin only, emergency use)"
+      ],
+      "discriminator": [
+        189,
+        15,
+        87,
+        113,
+        77,
+        135,
+        75,
+        171
+      ],
+      "accounts": [
+        {
+          "name": "poll",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim_refund",
+      "docs": [
+        "Claim refund for a cancelled poll"
+      ],
+      "discriminator": [
+        15,
+        16,
+        30,
+        161,
+        255,
+        228,
+        97,
+        60
+      ],
+      "accounts": [
+        {
+          "name": "poll",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "poll.poll_id",
+                "account": "Poll"
+              }
+            ]
+          }
+        },
+        {
+          "name": "bid",
+          "writable": true
+        },
+        {
+          "name": "bettor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim_winnings",
+      "docs": [
+        "Claim winnings for a winning bid (with 2% platform fee)"
+      ],
+      "discriminator": [
+        161,
+        215,
+        24,
+        59,
+        14,
+        236,
+        242,
+        221
+      ],
+      "accounts": [
+        {
+          "name": "poll",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "poll.poll_id",
+                "account": "Poll"
+              }
+            ]
+          }
+        },
+        {
+          "name": "bid",
+          "writable": true
+        },
+        {
+          "name": "bettor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "treasury",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_poll",
+      "docs": [
+        "Initialize a new prediction poll/market",
+        "This creates the on-chain state and escrow vault for the poll"
+      ],
+      "discriminator": [
+        193,
+        22,
+        99,
+        197,
+        18,
+        33,
+        115,
+        117
+      ],
+      "accounts": [
+        {
+          "name": "poll",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  108,
+                  108
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "poll_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "poll_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "poll_id",
+          "type": "string"
+        },
+        {
+          "name": "title",
+          "type": "string"
+        },
+        {
+          "name": "option_a_text",
+          "type": "string"
+        },
+        {
+          "name": "option_b_text",
+          "type": "string"
+        },
+        {
+          "name": "end_timestamp",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "place_bid",
+      "docs": [
+        "Place a bid on a poll option with AMM odds adjustment"
+      ],
+      "discriminator": [
+        238,
+        77,
+        148,
+        91,
+        200,
+        151,
+        92,
+        146
+      ],
+      "accounts": [
+        {
+          "name": "poll",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "poll.poll_id",
+                "account": "Poll"
+              }
+            ]
+          }
+        },
+        {
+          "name": "bid",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  105,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "poll"
+              },
+              {
+                "kind": "account",
+                "path": "bettor"
+              },
+              {
+                "kind": "arg",
+                "path": "bid_index"
+              }
+            ]
+          }
+        },
+        {
+          "name": "bettor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "option",
+          "type": {
+            "defined": {
+              "name": "BidOption"
+            }
+          }
+        },
+        {
+          "name": "timestamp",
+          "type": "i64"
+        },
+        {
+          "name": "bid_index",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "settle_poll",
+      "docs": [
+        "Settle the poll and declare a winner (admin only)"
+      ],
+      "discriminator": [
+        12,
+        197,
+        155,
+        46,
+        229,
+        145,
+        89,
+        48
+      ],
+      "accounts": [
+        {
+          "name": "poll",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "winning_option",
+          "type": {
+            "defined": {
+              "name": "BidOption"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Bid",
+      "discriminator": [
+        143,
+        246,
+        48,
+        245,
+        42,
+        145,
+        180,
+        88
+      ]
+    },
+    {
+      "name": "Poll",
+      "discriminator": [
+        110,
+        234,
+        167,
+        188,
+        231,
+        136,
+        153,
+        111
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "BidPlaced",
+      "discriminator": [
+        135,
+        53,
+        176,
+        83,
+        193,
+        69,
+        108,
+        61
+      ]
+    },
+    {
+      "name": "PollCancelled",
+      "discriminator": [
+        112,
+        247,
+        152,
+        12,
+        78,
+        8,
+        153,
+        190
+      ]
+    },
+    {
+      "name": "PollCreated",
+      "discriminator": [
+        137,
+        85,
+        250,
+        148,
+        2,
+        9,
+        178,
+        39
+      ]
+    },
+    {
+      "name": "PollSettled",
+      "discriminator": [
+        213,
+        246,
+        189,
+        228,
+        238,
+        237,
+        45,
+        250
+      ]
+    },
+    {
+      "name": "RefundClaimed",
+      "discriminator": [
+        136,
+        64,
+        242,
+        99,
+        4,
+        244,
+        208,
+        130
+      ]
+    },
+    {
+      "name": "WinningsClaimed",
+      "discriminator": [
+        187,
+        184,
+        29,
+        196,
+        54,
+        117,
+        70,
+        150
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "PollIdTooLong",
+      "msg": "Poll ID cannot exceed 64 characters"
+    },
+    {
+      "code": 6001,
+      "name": "TitleTooLong",
+      "msg": "Title cannot exceed 256 characters"
+    },
+    {
+      "code": 6002,
+      "name": "OptionTextTooLong",
+      "msg": "Option text cannot exceed 128 characters"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidEndTime",
+      "msg": "End time must be in the future"
+    },
+    {
+      "code": 6004,
+      "name": "PollNotActive",
+      "msg": "Poll is not active"
+    },
+    {
+      "code": 6005,
+      "name": "PollEnded",
+      "msg": "Poll has ended"
+    },
+    {
+      "code": 6006,
+      "name": "PollNotEnded",
+      "msg": "Poll has not ended yet"
+    },
+    {
+      "code": 6007,
+      "name": "InvalidBetAmount",
+      "msg": "Bet amount must be between 0.01 and 100 SOL"
+    },
+    {
+      "code": 6008,
+      "name": "Unauthorized",
+      "msg": "Unauthorized action"
+    },
+    {
+      "code": 6009,
+      "name": "PollNotSettled",
+      "msg": "Poll is not settled"
+    },
+    {
+      "code": 6010,
+      "name": "BidAlreadyClaimed",
+      "msg": "Bid has already been claimed"
+    },
+    {
+      "code": 6011,
+      "name": "BidDidNotWin",
+      "msg": "This bid did not win"
+    },
+    {
+      "code": 6012,
+      "name": "PollNotCancelled",
+      "msg": "Poll is not cancelled"
+    },
+    {
+      "code": 6013,
+      "name": "InvalidBidIndex",
+      "msg": "Provided bid index does not match next available index"
+    }
+  ],
+  "types": [
+    {
+      "name": "Bid",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bettor",
+            "type": "pubkey"
+          },
+          {
+            "name": "poll",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "option",
+            "type": {
+              "defined": {
+                "name": "BidOption"
+              }
+            }
+          },
+          {
+            "name": "odds_at_purchase",
+            "type": "u64"
+          },
+          {
+            "name": "potential_win",
+            "type": "u64"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "BidStatus"
+              }
+            }
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "index",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BidOption",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "OptionA"
+          },
+          {
+            "name": "OptionB"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BidPlaced",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bid",
+            "type": "pubkey"
+          },
+          {
+            "name": "bettor",
+            "type": "pubkey"
+          },
+          {
+            "name": "poll",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "option",
+            "type": {
+              "defined": {
+                "name": "BidOption"
+              }
+            }
+          },
+          {
+            "name": "odds",
+            "type": "u64"
+          },
+          {
+            "name": "potential_win",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BidStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Won"
+          },
+          {
+            "name": "Lost"
+          },
+          {
+            "name": "Refunded"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Poll",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "poll_id",
+            "type": "string"
+          },
+          {
+            "name": "title",
+            "type": "string"
+          },
+          {
+            "name": "option_a_text",
+            "type": "string"
+          },
+          {
+            "name": "option_b_text",
+            "type": "string"
+          },
+          {
+            "name": "option_a_stake",
+            "type": "u64"
+          },
+          {
+            "name": "option_b_stake",
+            "type": "u64"
+          },
+          {
+            "name": "total_pool",
+            "type": "u64"
+          },
+          {
+            "name": "option_a_odds",
+            "type": "u64"
+          },
+          {
+            "name": "option_b_odds",
+            "type": "u64"
+          },
+          {
+            "name": "end_timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "PollStatus"
+              }
+            }
+          },
+          {
+            "name": "winner",
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "BidOption"
+                }
+              }
+            }
+          },
+          {
+            "name": "vault_bump",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "next_bid_index",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PollCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "poll",
+            "type": "pubkey"
+          },
+          {
+            "name": "total_pool",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PollCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "poll",
+            "type": "pubkey"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "poll_id",
+            "type": "string"
+          },
+          {
+            "name": "title",
+            "type": "string"
+          },
+          {
+            "name": "end_timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PollSettled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "poll",
+            "type": "pubkey"
+          },
+          {
+            "name": "winner",
+            "type": {
+              "defined": {
+                "name": "BidOption"
+              }
+            }
+          },
+          {
+            "name": "total_pool",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PollStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Settled"
+          },
+          {
+            "name": "Cancelled"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RefundClaimed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bid",
+            "type": "pubkey"
+          },
+          {
+            "name": "bettor",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WinningsClaimed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bid",
+            "type": "pubkey"
+          },
+          {
+            "name": "bettor",
+            "type": "pubkey"
+          },
+          {
+            "name": "payout",
+            "type": "u64"
+          },
+          {
+            "name": "platform_fee",
+            "type": "u64"
+          }
+        ]
+      }
+    }
+  ]
+}

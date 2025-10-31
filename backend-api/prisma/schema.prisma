@@ -1,0 +1,336 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER & AUTHENTICATION
+// ============================================
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  phone         String   @unique
+  fullName      String   @map("full_name")
+  passwordHash  String   @map("password_hash")
+  
+  // Solana Wallet Integration
+  solanaWallet  String?  @unique @map("solana_wallet") // Public key
+  walletType    WalletType? @map("wallet_type") // phantom, solflare, etc.
+  
+  // KYC & Verification
+  kycStatus     KycStatus @default(PENDING) @map("kyc_status")
+  kycDocuments  Json?    @map("kyc_documents")
+  isVerified    Boolean  @default(false) @map("is_verified")
+  
+  // Wallet & Balance
+  walletBalance Decimal  @default(0) @db.Decimal(15, 2) @map("wallet_balance")
+  
+  // User Status
+  isActive      Boolean  @default(true) @map("is_active")
+  role          UserRole @default(USER)
+  
+  // Timestamps
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  lastLoginAt   DateTime? @map("last_login_at")
+  
+  // Relations
+  refreshTokens RefreshToken[]
+  bids          Bid[]
+  transactions  Transaction[]
+  notifications Notification[]
+  polls         Poll[]        @relation("PollCreator")
+  walletHistory WalletHistory[]
+  
+  @@index([email])
+  @@index([phone])
+  @@index([solanaWallet])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([token])
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ============================================
+// POLLS & TRADING
+// ============================================
+
+model Poll {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  category    PollCategory
+  imageUrl    String?  @map("image_url")
+  
+  // Trading Details
+  options     PollOption[]
+  totalPool   Decimal  @default(0) @db.Decimal(15, 2) @map("total_pool")
+  totalVolume Decimal  @default(0) @db.Decimal(15, 2) @map("total_volume")
+  
+  // Blockchain Integration
+  onChain         Boolean  @default(false) @map("on_chain") // Is this poll on Solana?
+  solanaProgram   String?  @map("solana_program") // Program address if on-chain
+  solanaPollId    String?  @map("solana_poll_id") // On-chain poll ID
+  
+  // Status & Lifecycle
+  status      PollStatus @default(ACTIVE)
+  endDate     DateTime   @map("end_date")
+  resultDate  DateTime?  @map("result_date")
+  result      String?    // Winning option ID
+  
+  // Creation Info
+  createdBy   String     @map("created_by")
+  source      PollSource @default(MANUAL) // manual, ai_generated
+  
+  // Timestamps
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  
+  // Relations
+  creator User @relation("PollCreator", fields: [createdBy], references: [id])
+  bids    Bid[]
+  
+  @@index([status])
+  @@index([category])
+  @@index([endDate])
+  @@index([createdBy])
+  @@map("polls")
+}
+
+model PollOption {
+  id          String  @id @default(uuid())
+  pollId      String  @map("poll_id")
+  optionText  String  @map("option_text")
+  currentOdds Decimal @default(0.5) @db.Decimal(8, 4) @map("current_odds")
+  totalStaked Decimal @default(0) @db.Decimal(15, 2) @map("total_staked")
+  
+  solanaAccount String? @map("solana_account")
+  
+  poll Poll @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  bids Bid[]
+  
+  @@index([pollId])
+  @@map("poll_options")
+}
+
+model Bid {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  pollId          String   @map("poll_id")
+  optionId        String   @map("option_id")
+  
+  amount          Decimal  @db.Decimal(15, 2)
+  oddsAtPurchase  Decimal  @db.Decimal(8, 4) @map("odds_at_purchase")
+  potentialWin    Decimal  @db.Decimal(15, 2) @map("potential_win")
+  
+  onChain         Boolean  @default(false) @map("on_chain")
+  solanaSignature String?  @unique @map("solana_signature")
+  solanaAccount   String?  @map("solana_account")
+  
+  status          BidStatus @default(ACTIVE)
+  
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  settledAt       DateTime? @map("settled_at")
+  
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  poll   Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  option PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([pollId])
+  @@index([status])
+  @@index([solanaSignature])
+  @@map("bids")
+}
+
+// ============================================
+// PAYMENTS & TRANSACTIONS
+// ============================================
+
+model Transaction {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  
+  type            TransactionType
+  amount          Decimal  @db.Decimal(15, 2)
+  status          TransactionStatus @default(PENDING)
+  
+  paymentId       String?  @map("payment_id")
+  orderId         String?  @map("order_id")
+  paymentMethod   String?  @map("payment_method")
+  
+  solanaSignature String?  @unique @map("solana_signature")
+  solanaFrom      String?  @map("solana_from")
+  solanaTo        String?  @map("solana_to")
+  tokenMint       String?  @map("token_mint")
+  
+  description     String?
+  metadata        Json?
+  
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([type])
+  @@index([status])
+  @@index([solanaSignature])
+  @@map("transactions")
+}
+
+model WalletHistory {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  type          WalletHistoryType
+  amount        Decimal  @db.Decimal(15, 2)
+  balanceBefore Decimal  @db.Decimal(15, 2) @map("balance_before")
+  balanceAfter  Decimal  @db.Decimal(15, 2) @map("balance_after")
+  referenceId   String?  @map("reference_id")
+  referenceType String?  @map("reference_type")
+  description   String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([type])
+  @@map("wallet_history")
+}
+
+// ============================================
+// NOTIFICATIONS
+// ============================================
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  title     String
+  message   String
+  type      NotificationType
+  isRead    Boolean  @default(false) @map("is_read")
+  data      Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum UserRole {
+  USER
+  ADMIN
+  MODERATOR
+}
+
+enum KycStatus {
+  PENDING
+  UNDER_REVIEW
+  VERIFIED
+  REJECTED
+}
+
+enum WalletType {
+  PHANTOM
+  SOLFLARE
+  BACKPACK
+  GLOW
+  OTHER
+}
+
+enum PollCategory {
+  SPORTS
+  POLITICS
+  ENTERTAINMENT
+  TECHNOLOGY
+  BUSINESS
+  CRYPTO
+  OTHER
+}
+
+enum PollStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+  SETTLED
+  CANCELLED
+}
+
+enum PollSource {
+  MANUAL
+  AI_GENERATED
+}
+
+enum BidStatus {
+  ACTIVE
+  WON
+  LOST
+  REFUNDED
+  CANCELLED
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  BID_PLACED
+  WIN_PAYOUT
+  REFUND
+  FEE
+  TOKEN_SWAP
+}
+
+enum TransactionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum WalletHistoryType {
+  DEPOSIT
+  WITHDRAWAL
+  BID
+  WIN
+  REFUND
+  FEE
+  BONUS
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+  POLL_RESULT
+  PAYMENT_SUCCESS
+  PAYMENT_FAILED
+  KYC_UPDATE
+  NEW_POLL
+}
+
+
