@@ -34,6 +34,9 @@ const io = new Server(server, {
 
 const PORT = process.env.PORT || 8000;
 
+// Trust proxy - required when behind Nginx/Cloudflare
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 app.use(cors({

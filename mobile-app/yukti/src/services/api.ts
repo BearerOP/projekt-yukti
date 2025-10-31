@@ -3,11 +3,11 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Change this to your backend URL
-const API_URL = __DEV__ 
-  // ? 'http://localhost:8000/api/v1'  // Development
-  ? 'http://192.168.1.12:8000/api/v1'
-  // ? 'http://172.16.19.135:8000/api/v1'
-  : 'https://your-production-api.com/api/v1';  // Production
+const API_URL = __DEV__
+  ? 'http://192.168.1.12:8000/api/v1'  // Development - use your local IP
+  // ? 'http://172.16.19.135:8000/api/v1'  // Alternative local IP
+  // ? 'http://10.0.2.2:8000/api/v1'  // Android emulator
+  : 'https://yukti-api.bearerop.live/api/v1';  // Production
 
 // For Android emulator, use: http://10.0.2.2:8000/api/v1
 // For iOS simulator, use: http://localhost:8000/api/v1

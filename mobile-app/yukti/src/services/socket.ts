@@ -3,11 +3,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { io, Socket } from 'socket.io-client';
 
 const SOCKET_URL = __DEV__
-
-    // ? 'http://localhost:8000/api/v1'  // Development
-    ? 'http://192.168.1.12:8000/api/v1'
-    // ? 'http://172.16.19.135:8000/api/v1'
-  : 'https://your-production-api.com';
+  ? 'http://192.168.1.12:8000'  // Development - use your local IP
+  // ? 'http://172.16.19.135:8000'  // Alternative local IP
+  // ? 'http://10.0.2.2:8000'  // Android emulator
+  : 'https://yukti-api.bearerop.live';  // Production
 
 class SocketService {
   private socket: Socket | null = null;
