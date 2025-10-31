@@ -58,7 +58,7 @@ export class BidService {
       throw new Error(`Maximum bid amount is ${this.MAX_BID_AMOUNT} SOL`);
     }
 
-    // Use transaction to ensure atomicity
+    // Use transaction to ensure atomicity with increased timeout
     return await prisma.$transaction(async (tx) => {
       // 1. Verify user has sufficient balance and wallet (if needed)
       const user = await tx.user.findUnique({
@@ -218,6 +218,9 @@ export class BidService {
         },
         solanaTransaction,
       };
+    }, {
+      maxWait: 10000, // Maximum time to wait for a transaction slot (10s)
+      timeout: 20000, // Maximum transaction duration (20s)
     });
   }
 
@@ -515,6 +518,9 @@ export class BidService {
           });
         }
       }
+    }, {
+      maxWait: 10000, // Maximum time to wait for a transaction slot (10s)
+      timeout: 30000, // Maximum transaction duration (30s) - longer for settlement
     });
   }
 
